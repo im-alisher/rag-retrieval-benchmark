@@ -72,8 +72,9 @@ class BM25Retriever(Retriever):
     def search(self, query: str, k: int) -> list[tuple[str, float]]:
         """Score the query against the corpus and return the top k.
 
-        Documents with a score of zero (no matching term) are dropped,
-        because they are not real matches.
+        A score of 0 means the document shares no term with the query.
+        Such documents are still returned when the corpus is too small
+        to fill k, which keeps the ranking complete and predictable.
 
         Args:
             query: Query text.
@@ -94,5 +95,4 @@ class BM25Retriever(Retriever):
             key=lambda item: item[1],
             reverse=True,
         )
-        results = [(doc_id, float(score)) for doc_id, score in ranked if score > 0]
-        return results[:k]
+        return [(doc_id, float(score)) for doc_id, score in ranked[:k]]

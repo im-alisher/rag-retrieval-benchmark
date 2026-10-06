@@ -119,6 +119,93 @@ class FixedRetriever(Retriever):
         return self.results.get(query, [])[:k]
 
 
+# --- Fakes that mimic the ir_datasets API -------------------------------
+# The real package is never imported. These classes mirror just enough
+# of the API to test the loader fallback for BEIR datasets that expose
+# qrels only on split subsets, such as beir/scifact.
+
+
+class DocWithTitle:
+    """Document whose ``default_text`` prepends the title, like BEIR."""
+
+    def __init__(self, doc_id: str, title: str, text: str) -> None:
+        self.doc_id = doc_id
+        self.title = title
+        self.text = text
+
+    def default_text(self) -> str:
+        return f"{self.title} {self.text}"
+
+
+class PlainDoc:
+    """Document without ``default_text``, like GenericDoc fallbacks."""
+
+    def __init__(self, doc_id: str, text: str) -> None:
+        self.doc_id = doc_id
+        self.text = text
+
+
+class FakeQuery:
+    """Query with the fields the loader reads."""
+
+    def __init__(self, query_id: str, text: str) -> None:
+        self.query_id = query_id
+        self.text = text
+
+
+class FakeQrel:
+    """Relevance judgment with the fields the loader reads."""
+
+    def __init__(self, query_id: str, doc_id: str, relevance: int) -> None:
+        self.query_id = query_id
+        self.doc_id = doc_id
+        self.relevance = relevance
+
+
+class BaseFakeDataset:
+    """Dataset with docs and queries but no qrels, like ``beir/scifact``."""
+
+    def __init__(self, docs: list, queries: list) -> None:
+        self._docs = list(docs)
+        self._queries = list(queries)
+
+    def docs_iter(self):
+        return iter(self._docs)
+
+    def queries_iter(self):
+        return iter(self._queries)
+
+
+class SplitFakeDataset(BaseFakeDataset):
+    """Dataset that also exposes ``qrels_iter``, like ``.../test``."""
+
+    def __init__(self, docs: list, queries: list, qrels: list) -> None:
+        super().__init__(docs, queries)
+        self._qrels = list(qrels)
+
+    def qrels_iter(self):
+        return iter(self._qrels)
+
+
+class FakeIrDatasets:
+    """Stand-in for the ``ir_datasets`` module with a fixed registry.
+
+    Args:
+        datasets: Maps dataset id to a fake dataset object.
+    """
+
+    def __init__(self, datasets: dict[str, BaseFakeDataset]) -> None:
+        self._datasets = datasets
+        self.requested: list[str] = []
+
+    def load(self, name: str) -> BaseFakeDataset:
+        """Return a registered dataset or raise KeyError, like ir_datasets."""
+        self.requested.append(name)
+        if name not in self._datasets:
+            raise KeyError(name)
+        return self._datasets[name]
+
+
 class NetworkAccessBlocked(RuntimeError):
     """Raised when a test tries to reach the network."""
 

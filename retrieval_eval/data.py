@@ -167,35 +167,65 @@ def _load_remote(name: str) -> Dataset:
     """Load a public benchmark by name using ir_datasets or beir.
 
     Both packages are imported lazily so that unit tests and offline
-    environments never need them installed.
+    environments never need them installed. If ir_datasets cannot serve
+    the name, the error is kept and the beir package is tried next.
     """
     try:
         import ir_datasets  # noqa: PLC0415 - lazy on purpose
     except ImportError:
         ir_datasets = None
 
+    errors: list[str] = []
     if ir_datasets is not None:
         try:
             return _load_from_ir_datasets(ir_datasets, name)
-        except (KeyError, ValueError):
-            pass
+        except (KeyError, ValueError) as exc:
+            errors.append(str(exc))
 
     try:
         import beir  # noqa: F401, PLC0415 - lazy on purpose
-    except ImportError as exc:
+    except ImportError:
+        reason = "; ".join(errors) or "neither ir_datasets nor beir is installed"
         raise ValueError(
-            f"Cannot load dataset '{name}'. Install ir_datasets or beir, "
-            "or pass a local JSON file or BEIR directory."
-        ) from exc
+            f"Cannot load dataset '{name}': {reason}. "
+            "Install the missing package, or pass a local JSON file "
+            "or BEIR directory."
+        ) from None
 
     return _load_from_beir(name)
 
 
 def _load_from_ir_datasets(ir_datasets_module, name: str) -> Dataset:
-    """Convert an ir_datasets benchmark into our :class:`Dataset`."""
+    """Convert an ir_datasets benchmark into our :class:`Dataset`.
+
+    Some BEIR benchmarks, for example ``beir/scifact``, are registered
+    without qrels on the base id. Their qrels live in split subsets
+    such as ``beir/scifact/test``. When the base id has no qrels, the
+    test split is tried automatically, because that is the standard
+    BEIR evaluation split.
+
+    Raises:
+        KeyError: If the name is unknown to ir_datasets.
+        ValueError: If the name exists but no qrels can be found for
+            it, not even in a test split.
+    """
     dataset = ir_datasets_module.load(name)
+
+    if not hasattr(dataset, "qrels_iter"):
+        test_name = f"{name}/test"
+        try:
+            test_dataset = ir_datasets_module.load(test_name)
+        except KeyError:
+            test_dataset = None
+        if test_dataset is None or not hasattr(test_dataset, "qrels_iter"):
+            raise ValueError(
+                f"Dataset '{name}' provides no qrels. "
+                f"A split such as '{test_name}' may exist instead."
+            )
+        dataset = test_dataset
+
     corpus = {
-        doc.doc_id: (doc.text or "")
+        doc.doc_id: _doc_text(doc)
         for doc in dataset.docs_iter()
     }
     queries = {
@@ -206,6 +236,17 @@ def _load_from_ir_datasets(ir_datasets_module, name: str) -> Dataset:
     for qrel in dataset.qrels_iter():
         qrels.setdefault(qrel.query_id, {})[qrel.doc_id] = int(qrel.relevance)
     return Dataset(corpus=corpus, queries=queries, qrels=qrels)
+
+
+def _doc_text(doc) -> str:
+    """Return the text of an ir_datasets document.
+
+    Uses ``default_text()`` when the document offers it, because for
+    BEIR documents that method prepends the title to the text, which is
+    what BEIR baselines index.
+    """
+    text = doc.default_text() if hasattr(doc, "default_text") else doc.text
+    return text or ""
 
 
 def _load_from_beir(name: str) -> Dataset:

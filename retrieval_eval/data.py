@@ -16,6 +16,7 @@ module can be imported on a machine without those packages installed.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -208,20 +209,27 @@ def _load_from_ir_datasets(ir_datasets_module, name: str) -> Dataset:
 
 
 def _load_from_beir(name: str) -> Dataset:
-    """Convert a BEIR benchmark into our :class:`Dataset``.
+    """Convert a BEIR benchmark into our :class:`Dataset`.
 
-    The dataset name is split into ``domain`` and ``subset`` on the last
-    slash, for example ``beir/scifact`` becomes domain ``beir`` and
-    subset ``scifact``.
+    The dataset name is split into ``domain`` and ``subset`` on the
+    first slash, for example ``beir/scifact`` becomes domain ``beir``
+    and subset ``scifact``.
+
+    The subset is validated against a strict pattern before it is used
+    to build a download path, so a crafted name can never escape the
+    ``data`` folder.
     """
-    from beir import util as beir_util  # noqa: PLC0415 - lazy on purpose
-    from beir.datasets.data_loader import GenericDataLoader  # noqa: PLC0415
-
     if "/" not in name:
         raise ValueError(
             f"BEIR dataset names look like 'beir/scifact', got: {name}"
         )
     domain, subset = name.split("/", 1)
+    if domain != "beir" or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", subset):
+        raise ValueError(f"Unsafe or unknown BEIR dataset name: {name}")
+
+    from beir import util as beir_util  # noqa: PLC0415 - lazy on purpose
+    from beir.datasets.data_loader import GenericDataLoader  # noqa: PLC0415
+
     url = f"https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{subset}.zip"
     data_path = beir_util.download_and_unzip(url, str(Path("data") / subset))
     corpus, queries, qrels = GenericDataLoader(data_path).load(data_path)

@@ -184,14 +184,18 @@ Design notes:
 
 ## Results
 
-Placeholder. Run the benchmark and paste the table from `reports/report.md`
-here.
+| retriever | recall@1 | mrr@1 | ndcg@1 | map@1 | recall@5 | mrr@5 | ndcg@5 | map@5 | recall@10 | mrr@10 | ndcg@10 | map@10 | avg_latency_ms | queries |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| bm25 | 0.5075 | 0.5233 | 0.5233 | 0.5075 | 0.7284 | 0.6132 | 0.6360 | 0.5991 | 0.7740 | 0.6186 | 0.6519 | 0.6070 | 40.098 | 300 |
+| dense | 0.3669 | 0.3933 | 0.3933 | 0.3669 | 0.5300 | 0.4434 | 0.4546 | 0.4234 | 0.6156 | 0.4550 | 0.4837 | 0.4366 | 147.471 | 300 |
+| hybrid | 0.4511 | 0.4767 | 0.4767 | 0.4511 | 0.6682 | 0.5574 | 0.5747 | 0.5365 | 0.7522 | 0.5683 | 0.6042 | 0.5507 | 98.605 | 300 |
 
-| retriever | recall@1 | recall@5 | recall@10 | mrr@10 | ndcg@10 | map@10 | avg latency (ms) |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| bm25 | - | - | - | - | - | - | - |
-| dense | - | - | - | - | - | - | - |
-| hybrid | - | - | - | - | - | - | - |
+Setup: dataset BEIR SciFact, 300 queries, 5,183 documents, embedding model
+sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2, hybrid uses
+Reciprocal Rank Fusion with equal weight.
+
+On this benchmark BM25 scored highest, hybrid placed second, and dense
+retrieval scored lowest.
 
 ## What I Learned
 

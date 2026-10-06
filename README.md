@@ -195,7 +195,36 @@ here.
 
 ## What I Learned
 
+- BM25 turned out to be the strongest and fastest method on BEIR SciFact
+  (300 queries, 5,183 documents). I now measure a keyword baseline before
+  adding dense retrieval, because it costs nothing to run and it is not
+  easy to beat.
+- Dense retrieval scored lowest. The default model,
+  paraphrase-multilingual-MiniLM, is trained to match similar sentences,
+  not to retrieve documents for a query. I learned that the training
+  objective of the embedding model matters as much as the retrieval
+  method itself.
+- My hybrid, Reciprocal Rank Fusion with equal weight, did not beat BM25,
+  because the weaker dense ranking pulled the fused result down. A hybrid
+  is only as good as its weakest component.
+- My first runs used only 10 queries and gave noisy numbers. The full 300
+  queries gave a more reliable picture. Sample size matters.
+- Caching embeddings made repeated runs much faster: about 6.5 minutes for
+  the first run versus under a minute with the cache.
+
 ## What I Would Improve
+
+- Compare against embedding models built for retrieval, for example
+  multi-qa-MiniLM, bge or e5, to measure how much the model choice
+  changes the result.
+- Try weighted fusion instead of equal weight RRF, and tune the weights.
+- Add a cross encoder reranker as a second stage.
+- Evaluate on more datasets, for example NFCorpus and FiQA, and on a
+  Turkish retrieval dataset.
+- Add bootstrap confidence intervals so I can check whether differences
+  between retrievers are statistically significant.
+- Add a short error analysis of queries where BM25 and dense retrieval
+  disagree.
 
 ## License
 

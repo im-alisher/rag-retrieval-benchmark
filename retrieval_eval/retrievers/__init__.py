@@ -9,5 +9,6 @@ Concrete retrievers:
 
 from retrieval_eval.retrievers.base import Retriever
 from retrieval_eval.retrievers.bm25 import BM25Retriever
+from retrieval_eval.retrievers.dense import DenseRetriever
 
-__all__ = ["Retriever", "BM25Retriever"]
+__all__ = ["Retriever", "BM25Retriever", "DenseRetriever"]

@@ -136,6 +136,7 @@ class DenseRetriever(Retriever):
         self.use_cache = use_cache
         self._doc_ids: list[str] = []
         self._matrix: np.ndarray | None = None
+        self._fingerprint: str | None = None
 
     def _get_embedder(self) -> Embedder:
         """Return the injected embedder or lazily load the real model."""
@@ -152,6 +153,12 @@ class DenseRetriever(Retriever):
     def index(self, corpus: dict[str, str]) -> None:
         """Embed every document and keep the vectors in memory.
 
+        Indexing the same corpus twice is a no-op: the vectors are kept
+        in memory and the corpus fingerprint is compared first. This
+        matters when the retriever is shared, for example inside
+        ``HybridRetriever``, where the corpus would otherwise be
+        encoded once per entry in the evaluation.
+
         When ``use_cache`` is on, an existing cache file is loaded
         instead of re-encoding. Otherwise the corpus is encoded and the
         result is written to the cache file.
@@ -159,17 +166,27 @@ class DenseRetriever(Retriever):
         Args:
             corpus: Maps document id to document text.
         """
+        fingerprint = corpus_fingerprint(corpus)
+        if (
+            self._matrix is not None
+            and self._fingerprint == fingerprint
+            and self._doc_ids == list(corpus.keys())
+        ):
+            return
+
         self._doc_ids = list(corpus.keys())
         texts = list(corpus.values())
 
         cache_path = self._cache_path(corpus)
         if self.use_cache and cache_path.exists():
             self._matrix = np.load(cache_path)
+            self._fingerprint = fingerprint
             return
 
         embedder = self._get_embedder()
         matrix = np.asarray(embedder.encode(texts), dtype=np.float64)
         self._matrix = matrix
+        self._fingerprint = fingerprint
 
         if self.use_cache:
             cache_path.parent.mkdir(parents=True, exist_ok=True)

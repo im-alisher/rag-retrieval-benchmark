@@ -146,6 +146,70 @@ class TestDenseRetriever:
         # 2 documents + 1 query were encoded, nothing was downloaded.
         assert CountingEmbedder.calls == 3
 
+    def test_indexing_same_corpus_twice_encodes_only_once(self) -> None:
+        # Regression test for the double encoding that made runs take
+        # twice as long: hybrid shares the dense retriever and evaluate
+        # indexes every entry.
+        class CountingEmbedder(FakeEmbedder):
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def encode(self, sentences, **kwargs):
+                self.calls += len(sentences)
+                return super().encode(sentences, **kwargs)
+
+        embedder = CountingEmbedder()
+        retriever = DenseRetriever(embedder=embedder)
+        retriever.index(CORPUS)
+        retriever.index(CORPUS)
+        assert embedder.calls == len(CORPUS)
+
+    def test_indexing_a_changed_corpus_encodes_again(self) -> None:
+        class CountingEmbedder(FakeEmbedder):
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def encode(self, sentences, **kwargs):
+                self.calls += len(sentences)
+                return super().encode(sentences, **kwargs)
+
+        embedder = CountingEmbedder()
+        retriever = DenseRetriever(embedder=embedder)
+        retriever.index(CORPUS)
+        changed = dict(CORPUS)
+        changed["d99"] = "one more document"
+        retriever.index(changed)
+        assert embedder.calls == len(CORPUS) + len(changed)
+
+    def test_embedding_cache_roundtrip(self, tmp_path) -> None:
+        class CountingEmbedder(FakeEmbedder):
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def encode(self, sentences, **kwargs):
+                self.calls += len(sentences)
+                return super().encode(sentences, **kwargs)
+
+        first = CountingEmbedder()
+        writer = DenseRetriever(embedder=first, cache_dir=tmp_path, use_cache=True)
+        writer.index(CORPUS)
+        assert first.calls == len(CORPUS)
+        assert list(tmp_path.glob("*.npy"))
+
+        # A second retriever loads the .npy file and never encodes.
+        second = CountingEmbedder()
+        reader = DenseRetriever(embedder=second, cache_dir=tmp_path, use_cache=True)
+        reader.index(CORPUS)
+        assert second.calls == 0
+
+        query = "bread baking"
+        reader_hits = reader.search(query, 5)
+        writer_hits = writer.search(query, 5)
+        assert [d for d, _ in reader_hits] == [d for d, _ in writer_hits]
+        assert [s for _, s in reader_hits] == pytest.approx(
+            [s for _, s in writer_hits]
+        )
+
 
 class TestCacheKey:
     def test_same_corpus_and_model_give_the_same_key(self) -> None:

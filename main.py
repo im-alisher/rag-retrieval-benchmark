@@ -70,16 +70,23 @@ def parse_retrievers(value: str) -> list[str]:
     return names
 
 
-def build_retrievers(names: Sequence[str], model_name: str) -> dict[str, Retriever]:
+def build_retrievers(
+    names: Sequence[str],
+    model_name: str,
+    use_cache: bool = False,
+) -> dict[str, Retriever]:
     """Create the retriever objects for the requested names.
 
     The hybrid retriever fuses a fresh BM25 retriever with a dense
     retriever. Dense retriever objects are shared between the ``dense``
-    entry and the ``hybrid`` entry so the model is only loaded once.
+    entry and the ``hybrid`` entry so the model is only loaded once
+    and the corpus is only encoded once.
 
     Args:
         names: Retriever names, any of ``bm25``, ``dense``, ``hybrid``.
         model_name: Sentence Transformers model for dense retrieval.
+        use_cache: If True, document embeddings are stored on disk and
+            reused on later runs instead of being recomputed.
 
     Returns:
         Retriever name to retriever object.
@@ -89,7 +96,7 @@ def build_retrievers(names: Sequence[str], model_name: str) -> dict[str, Retriev
     bm25: BM25Retriever | None = None
 
     if "dense" in wanted or "hybrid" in wanted:
-        dense = DenseRetriever(model_name=model_name)
+        dense = DenseRetriever(model_name=model_name, use_cache=use_cache)
     if "bm25" in wanted or "hybrid" in wanted:
         bm25 = BM25Retriever()
 
@@ -140,6 +147,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma separated retrievers: bm25,dense,hybrid (default: all).",
     )
     parser.add_argument(
+        "--use-cache",
+        action="store_true",
+        help=(
+            "Store document embeddings in .cache/embeddings and reuse "
+            "them on later runs. First run pays the embedding cost, "
+            "later runs skip it."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         default="reports",
         help="Folder for the generated reports (default: reports).",
@@ -165,7 +181,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"{len(dataset.corpus)} documents."
     )
 
-    retrievers = build_retrievers(args.retrievers, args.model)
+    retrievers = build_retrievers(args.retrievers, args.model, use_cache=args.use_cache)
     print(f"Running retrievers: {', '.join(retrievers)}")
 
     result = evaluate(

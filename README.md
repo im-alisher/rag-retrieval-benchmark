@@ -131,7 +131,7 @@ meaning matching.
 ## Architecture
 
 ```
-retrieval-evaluation/
+rag-retrieval-benchmark/
   retrieval_eval/
     data.py             Dataset dataclass and dataset loaders
     metrics.py          recall, mrr, ndcg, map from scratch
@@ -196,3 +196,7 @@ here.
 ## What I Learned
 
 ## What I Would Improve
+
+## License
+
+Released under the [MIT License](LICENSE).

@@ -1,0 +1,5 @@
+rank_bm25>=0.2.2
+sentence-transformers>=3.0.0
+ir_datasets>=0.5.1
+numpy>=1.26.0
+pytest>=8.0.0
